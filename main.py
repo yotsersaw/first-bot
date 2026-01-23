@@ -4,7 +4,8 @@ import os
 
 app = FastAPI()
 
-@app.get("/")
+# Теперь мы разрешаем и GET, и HEAD запросы
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {"status": "working", "message": "Бот скоро будет здесь!"}
 
