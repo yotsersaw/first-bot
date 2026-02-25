@@ -1,27 +1,38 @@
-import subprocess
 import os
+import socket
 import threading
-from fastapi import FastAPI, WebSocket
-from fastapi.responses import JSONResponse
-import asyncio
-import websockets
+from fastapi import FastAPI, Request, Response
+import httpx
 
 app = FastAPI()
 
-def start_shadowsocks():
-    password = os.environ.get("SS_PASSWORD", "warpgram123")
-    subprocess.Popen([
-        "ss-server",
-        "-s", "0.0.0.0",
-        "-p", "8388",
-        "-k", password,
-        "-m", "aes-256-gcm"
-    ])
-
-@app.on_event("startup")
-async def startup():
-    threading.Thread(target=start_shadowsocks, daemon=True).start()
-
 @app.get("/")
 async def root():
-    return {"status": "working"}
+    return {"status": "proxy working"}
+
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"])
+async def proxy(request: Request, path: str):
+    url = str(request.url)
+    headers = dict(request.headers)
+    headers.pop("host", None)
+    body = await request.body()
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            content=body,
+            follow_redirects=True
+        )
+    
+    return Response(
+        content=response.content,
+        status_code=response.status_code,
+        headers=dict(response.headers)
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
